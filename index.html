@@ -1,0 +1,201 @@
+<html>
+
+  <body>
+    <script src="js/three.js"></script>
+    <script src="js/maze.js"></script>
+    <script>
+
+      const urlParams = new URLSearchParams( window.location.search)
+      var topView = false
+      if (urlParams.get('top')) {
+        topView = true
+      }
+      var blobQty = urlParams.get('blobs') || 100
+      var camView = urlParams.get('cam') || 0
+
+			const scene = new THREE.Scene();
+
+      maze = new Maze( { scene: scene, width: 50, height: 50, tile_size: 32 });
+
+      const half_tile = maze.tile_size / 2
+
+      const loader = new THREE.TextureLoader();
+      const wall_texture = loader.load('wall.png')
+      const floor_texture = loader.load('floor.png')
+      floor_texture.wrapS = THREE.RepeatWrapping;
+      floor_texture.wrapT = THREE.RepeatWrapping;
+      floor_texture.repeat.set(maze.size.x, maze.size.y)
+
+      var wall_material = new THREE.MeshBasicMaterial({
+        // light
+        specular: 0xffffff,
+        // intermediate
+        color: 0xffffff,
+        // dark
+        emissive: 0xffffff,
+        shininess: 1,
+        wireframe: false,
+        side: THREE.DoubleSide,
+        map: wall_texture
+      });
+
+      var floor_material = new THREE.MeshBasicMaterial({
+        // light
+        specular: 0xcccccc,
+        // intermediate
+        color: 0x999999,
+        // dark
+        emissive: 0x555555,
+        shininess: 0,
+        wireframe: false,
+        side: THREE.DoubleSide,
+        map: floor_texture
+      });
+
+      while (!maze.create());
+
+      for (var y=0; y<maze.size.y; y++) {
+        for (var x=0; x<maze.size.x; x++) {
+          var tile = maze.board[x][y]
+          if (!(tile & BITS[NORTH])) {
+            var mesh = new THREE.Mesh( 
+                        new THREE.PlaneGeometry(maze.tile_size,maze.tile_size),
+                        wall_material
+            )
+            mesh.position.set(x*maze.tile_size, 0, -(y*maze.tile_size) - half_tile )
+            scene.add(mesh)
+          }
+          if (!(tile & BITS[WEST])) {
+            var mesh3 = new THREE.Mesh( 
+                        new THREE.PlaneGeometry(maze.tile_size,maze.tile_size),
+                        wall_material
+            )
+            mesh3.position.set(x*maze.tile_size - half_tile, 0, -(y*maze.tile_size) )
+            mesh3.rotation.y = THREE.Math.degToRad(90)
+            scene.add(mesh3)
+            }
+          }
+        }
+        var y = 0
+        for (var x=0;x<maze.size.x;x++) {
+          var tile = maze.board[x][y]
+          if (!(tile & BITS[SOUTH])) {
+            var mesh = new THREE.Mesh( 
+                        new THREE.PlaneGeometry(maze.tile_size,maze.tile_size),
+                        wall_material
+            )
+                  mesh.position.set(x*maze.tile_size, 0, -(y*maze.tile_size) + half_tile)
+                  scene.add(mesh)
+          }
+        }
+        var x = maze.size.x-1
+        for (var y=0;y<maze.size.y;y++) {
+          var tile = maze.board[x][y]
+          if (!(tile & BITS[EAST])) {
+            var mesh = new THREE.Mesh( 
+                        new THREE.PlaneGeometry(maze.tile_size,maze.tile_size),
+                        wall_material
+            )
+            mesh.position.set(x*maze.tile_size + half_tile, 0, -(y*maze.tile_size) )
+            mesh.rotation.y = THREE.Math.degToRad(90)
+            scene.add(mesh)
+          }
+        }
+
+        // Floor
+        var mesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(maze.size.x * maze.tile_size, maze.size.y * maze.tile_size),
+                floor_material
+        )
+        mesh.rotation.x = THREE.Math.degToRad(90)
+        mesh.position.set( (maze.size.x * maze.tile_size/2) - half_tile, -half_tile, -(maze.size.y * maze.tile_size/2) + half_tile)
+        scene.add(mesh)
+
+
+        const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, maze.tile_size * 500 );
+
+        const renderer = new THREE.WebGLRenderer( {
+                    antialias: true
+                  });
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        document.body.appendChild( renderer.domElement );
+
+        const geometry = new THREE.BoxGeometry();
+
+        const geo = new THREE.BoxGeometry()
+
+        var material2 = new THREE.MeshPhongMaterial({
+          // light
+          specular: 0xD76531,
+          // intermediate
+          color: 0xef1134,
+          // dark
+          emissive: 0x8c2317,
+          shininess: 50,
+          wireframe: false,
+          //map: THREE.ImageUtils.loadTexture('http://i.imgur.com/xCE2Br4.jpg?1')
+      });
+
+
+//      const axesHelper = new THREE.AxesHelper( 100 );
+//      scene.add( axesHelper );
+
+      camera.position.x = ((maze.size.x/2) * maze.tile_size) + half_tile
+      camera.position.y = 35 * maze.tile_size
+      camera.position.z = -( (maze.size.y/2) * maze.tile_size) + half_tile
+      camera.lookAt(camera.position.x,0,camera.position.z)
+
+      // add light, set color and distance.
+      var light = new THREE.DirectionalLight(0xffffff, 500);
+      // you set the position of the light and it shines into the origin
+      light.position.set(0, 10, 0).normalize();
+//      scene.add(light);
+      var dir=0.3
+
+      // add ambient light
+      // subtle blue
+      var ambientLight = new THREE.AmbientLight(0xffffff);
+      scene.add(ambientLight);
+
+      cam_dist=50
+      cam_dir=-2
+
+      blob = new Blob(maze, scene)
+      blob.spawn( { colour: 0xffffff } )
+
+      var blobs = []
+
+      for (var n=0;n<blobQty; n++) {
+        blobs.push( new Blob(maze, scene) )
+      }
+
+      const animate = function () {
+          blob.action()
+          for (var n=0;n<blobQty; n++) {
+            blobs[n].action()
+            blobs[n].plot()
+          }
+          if (topView) {
+            blob.plot()
+          } else {
+            if (camView==1) {
+              camera.position.x = blob.position.x + ((maze.tile_size *0.5) * Math.sin(THREE.Math.degToRad((blob.turning_from + 180)%360)))
+              camera.position.y = maze.tile_size * 0.4
+              camera.position.z = -blob.position.y - ((maze.tile_size *0.5) * Math.cos(THREE.Math.degToRad((blob.turning_from + 180)%360)))
+              blob.plot()
+            } else {
+              camera.position.x = blob.position.x
+              camera.position.y = 0
+              camera.position.z = -blob.position.y
+            }
+              camera.lookAt(camera.position.x + 50 * Math.sin(THREE.Math.degToRad(blob.turning_from)), camera.position.y, camera.position.z - 50 * Math.cos(THREE.Math.degToRad(blob.turning_from)))
+          }
+          dir+=0.01
+          requestAnimationFrame( animate );
+          renderer.render( scene, camera );
+			};
+
+			animate();
+  </script>
+  <body>
+</html>
